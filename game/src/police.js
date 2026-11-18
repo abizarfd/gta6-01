@@ -119,12 +119,18 @@ export function updatePolice(world, wanted, dt, onBusted) {
   // Cop cars chase the player: steer toward them, ram gently on foot.
   for (const car of world.cars) {
     if (car.driver !== 'cop') continue;
+    if (car.orbitDir === undefined) car.orbitDir = world.rng() < 0.5 ? 1 : -1;
     const spec = CAR_MODELS.cop;
-    const wantAngle = Math.atan2(player.y - car.y, player.x - car.x);
     const d = dist(car.x, car.y, player.x, player.y);
+    // Close in, then orbit the player instead of piling onto one spot: a
+    // ring of cruisers reads as a pursuit, a pile-up reads as a bug. Start
+    // the curve early and ease off up close so cruisers do not overshoot
+    // onto the player's car.
+    let wantAngle = Math.atan2(player.y - car.y, player.x - car.x);
+    if (d < 220) wantAngle += car.orbitDir * 0.9;
     const turn = clamp(angleDelta(car.angle, wantAngle), -1, 1);
     car.angle += turn * 3.2 * dt;
-    const targetSpeed = d > 120 ? spec.maxSpeed * 0.92 : 240;
+    const targetSpeed = d > 200 ? spec.maxSpeed * 0.92 : d < 80 ? 150 : 280;
     if (car.speed < targetSpeed) car.speed += spec.accel * dt;
     else car.speed -= 200 * dt;
     car.x += Math.cos(car.angle) * car.speed * dt;

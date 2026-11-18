@@ -100,11 +100,16 @@ export function createWorld(seed) {
 
 function spawnTrafficCar(world, player) {
   for (let tries = 0; tries < 12; tries++) {
-    const p = randomRoadPoint(world.rng);
-    if (dist(p.x, p.y, player.x, player.y) < 420) continue;
-    if (world.cars.some((c) => dist(c.x, c.y, p.x, p.y) < 90)) continue;
-    const model = pick(world.rng, ['sedan', 'sedan', 'sedan', 'taxi', 'van', 'sport', 'truck']);
+    // Pick the orientation FIRST, then a point on a road of that orientation,
+    // so the car always faces along the road it spawns on.
     const vertical = world.rng() < 0.5;
+    const c = pick(world.rng, ROAD_CENTERS);
+    const along = 100 + world.rng() * 3000;
+    const p = vertical ? { x: c, y: along } : { x: along, y: c };
+    const d = dist(p.x, p.y, player.x, player.y);
+    if (d < 450 || d > 900) continue;
+    if (world.cars.some((car) => dist(car.x, car.y, p.x, p.y) < 90)) continue;
+    const model = pick(world.rng, ['sedan', 'sedan', 'sedan', 'taxi', 'van', 'sport', 'truck']);
     const dir = world.rng() < 0.5 ? 1 : -1;
     const lane = 17;
     const x = vertical ? p.x + (dir > 0 ? lane : -lane) : p.x;
@@ -121,10 +126,15 @@ function spawnTrafficCar(world, player) {
 
 export function spawnParkedCar(world, player) {
   for (let tries = 0; tries < 12; tries++) {
-    const p = randomRoadPoint(world.rng);
-    if (dist(p.x, p.y, player.x, player.y) < 300) continue;
-    if (world.cars.some((c) => dist(c.x, c.y, p.x, p.y) < 80)) continue;
+    // Same rule as traffic: orientation first, then a point on a road of
+    // that orientation, so a parked car always sits along its road.
     const vertical = world.rng() < 0.5;
+    const c = pick(world.rng, ROAD_CENTERS);
+    const along = 100 + world.rng() * 3000;
+    const p = vertical ? { x: c, y: along } : { x: along, y: c };
+    const d = dist(p.x, p.y, player.x, player.y);
+    if (d < 300 || d > 900) continue;
+    if (world.cars.some((car) => dist(car.x, car.y, p.x, p.y) < 80)) continue;
     const side = world.rng() < 0.5 ? 1 : -1;
     const x = vertical ? p.x + side * 26 : p.x;
     const y = vertical ? p.y : p.y + side * 26;
@@ -139,7 +149,8 @@ export function spawnParkedCar(world, player) {
 function spawnPed(world, player) {
   for (let tries = 0; tries < 10; tries++) {
     const p = randomSidewalkPoint(world.rng);
-    if (dist(p.x, p.y, player.x, player.y) < 260) continue;
+    const d = dist(p.x, p.y, player.x, player.y);
+    if (d < 260 || d > 900) continue;
     if (world.peds.some((q) => dist(q.x, q.y, p.x, p.y) < 40)) continue;
     const ped = makePed(p.x, p.y, world.rng);
     const t = randomSidewalkPoint(world.rng);
@@ -152,10 +163,15 @@ function spawnPed(world, player) {
 
 export function maintainPopulation(world, player) {
   const traffic = world.cars.filter((c) => c.driver === 'traffic').length;
-  if (traffic < world.trafficTarget) spawnTrafficCar(world, player);
+  // Spawn up to two a call when the streets are empty, so the city fills fast.
+  for (let i = 0; i < 2 && world.cars.filter((c) => c.driver === 'traffic').length < world.trafficTarget; i++) {
+    spawnTrafficCar(world, player);
+  }
   const parked = world.cars.filter((c) => c.driver === 'parked').length;
   if (parked < 8) spawnParkedCar(world, player);
-  if (world.peds.filter((p) => !p.dead).length < world.pedTarget) spawnPed(world, player);
+  for (let i = 0; i < 2 && world.peds.filter((p) => !p.dead).length < world.pedTarget; i++) {
+    spawnPed(world, player);
+  }
   // Despawn far-away traffic and peds so the streets stay fresh.
   world.cars = world.cars.filter((c) => {
     if (c.driver === 'player') return true;
@@ -167,7 +183,8 @@ export function maintainPopulation(world, player) {
 function carAhead(world, car) {
   const fx = Math.cos(car.angle);
   const fy = Math.sin(car.angle);
-  let best = Infinity;
+  let best = null;
+  let bestD = Infinity;
   for (const o of world.cars) {
     if (o === car) continue;
     const dx = o.x - car.x;
@@ -175,9 +192,9 @@ function carAhead(world, car) {
     const along = dx * fx + dy * fy;
     if (along <= 0 || along > 110) continue;
     const side = Math.abs(-dx * fy + dy * fx);
-    if (side < 30 && along < best) best = along;
+    if (side < 30 && along < bestD) { bestD = along; best = o; }
   }
-  return best;
+  return best ? { d: bestD, car: best } : null;
 }
 
 function lightAhead(world, car) {
@@ -202,9 +219,10 @@ function lightAhead(world, car) {
 
 function updateTrafficCar(world, car, dt) {
   const spec = CAR_MODELS[car.model];
-  // At an intersection centre, sometimes turn.
-  const nearX = Math.abs(car.x - nearestCenter(car.x)) < 6;
-  const nearY = Math.abs(car.y - nearestCenter(car.y)) < 6;
+  // At an intersection centre, sometimes turn. The lane offset is 17, so the
+  // car is up to ~17 off the centre line on its own axis: test within 20.
+  const nearX = Math.abs(car.x - nearestCenter(car.x)) < 20;
+  const nearY = Math.abs(car.y - nearestCenter(car.y)) < 20;
   if (nearX && nearY && world.rng() < dt * 0.9) {
     const turn = world.rng();
     if (turn < 0.3) {
@@ -225,10 +243,18 @@ function updateTrafficCar(world, car, dt) {
     }
   }
 
-  // Target speed: cruise, slower for a car ahead or a red light.
+  // Target speed: cruise, slower for a car ahead or a red light. A parked car
+  // ahead is overtaken: swing to the opposite lane and keep speed.
   let target = car.cruise;
   const ahead = carAhead(world, car);
-  if (ahead < 80) target = Math.min(target, Math.max(0, (ahead - 34) * 3));
+  if (ahead) {
+    if (ahead.car.driver === 'parked' && ahead.d < 95) car.overtakeT = 2.2;
+    if (ahead.d < 80) target = Math.min(target, Math.max(0, (ahead.d - 34) * 3));
+  }
+  if (car.overtakeT > 0) {
+    car.overtakeT -= dt;
+    target = car.cruise;
+  }
   if (lightAhead(world, car)) target = 0;
   if (target < car.speed) car.speed = Math.max(target, car.speed - 320 * dt);
   else car.speed = Math.min(target, car.speed + spec.accel * 0.5 * dt);
@@ -236,14 +262,21 @@ function updateTrafficCar(world, car, dt) {
   car.x += Math.cos(car.angle) * car.speed * dt;
   car.y += Math.sin(car.angle) * car.speed * dt;
 
-  // Stay on the road: snap the perpendicular axis back to the lane.
+  // Stay on the road: snap the perpendicular axis back to the lane, and hard
+  // clamp it inside the asphalt so a traffic jam can never shove a car off.
+  // While overtaking, the lane is the opposite side of the road.
   const lane = 17;
+  const laneSign = car.overtakeT > 0 ? -1 : 1;
   if (car.vertical) {
-    const wantX = nearestCenter(car.x) + (car.dir > 0 ? lane : -lane);
-    car.x += (wantX - car.x) * Math.min(1, 6 * dt);
+    const wantX = nearestCenter(car.x) + (car.dir > 0 ? lane : -lane) * laneSign;
+    car.x += (wantX - car.x) * Math.min(1, 10 * dt);
+    const cx = nearestCenter(car.x);
+    if (Math.abs(car.x - cx) < 60) car.x = clamp(car.x, cx - 28, cx + 28);
   } else {
-    const wantY = nearestCenter(car.y) + (car.dir > 0 ? lane : -lane);
-    car.y += (wantY - car.y) * Math.min(1, 6 * dt);
+    const wantY = nearestCenter(car.y) + (car.dir > 0 ? lane : -lane) * laneSign;
+    car.y += (wantY - car.y) * Math.min(1, 10 * dt);
+    const cy = nearestCenter(car.y);
+    if (Math.abs(car.y - cy) < 60) car.y = clamp(car.y, cy - 28, cy + 28);
   }
   car.x = clamp(car.x, 60, WORLD_W - 60);
   car.y = clamp(car.y, 60, BEACH_Y - 60);
@@ -264,13 +297,15 @@ export function updateTraffic(world, dt) {
   for (const car of world.cars) {
     if (car.driver === 'traffic') updateTrafficCar(world, car, dt);
   }
-  // Gentle car-car separation so traffic does not pile up.
+  // Gentle car-car separation so traffic does not pile up. Parked cars never
+  // move: traffic goes around them instead of shoving them off their spot.
   const cars = world.cars;
   for (let i = 0; i < cars.length; i++) {
     for (let j = i + 1; j < cars.length; j++) {
       const a = cars[i];
       const b = cars[j];
       if (a.driver === 'player' || b.driver === 'player') continue;
+      if (a.driver === 'parked' || b.driver === 'parked') continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.hypot(dx, dy);

@@ -20,7 +20,7 @@ export const MISSIONS = [
     reward: 400,
     steps: [
       { type: 'talk', x: SAL_BAR.x, y: SAL_BAR.y, r: 90, label: 'Talk to Sal at the bar', line: "Sal: The package is at the Portside warehouse. My boys are watching the door — be quick." },
-      { type: 'goto', x: WAREHOUSE.x, y: WAREHOUSE.y, r: 80, label: 'Pick up the package at Portside Warehouse', line: 'Jax: Got it. Someone tipped the cops — move!' },
+      { type: 'goto', x: WAREHOUSE.x, y: WAREHOUSE.y, r: 130, label: 'Pick up the package at Portside Warehouse', line: 'Jax: Got it. Someone tipped the cops — move!' },
       { type: 'goto', x: SAL_BAR.x, y: SAL_BAR.y, r: 90, label: 'Bring the package back to Sal', line: "Sal: Clean work. Here's your cut. There's more where that came from." },
     ],
   },
@@ -32,7 +32,7 @@ export const MISSIONS = [
     reward: 900,
     steps: [
       { type: 'steal', x: HOT_CAR_SPOT.x, y: HOT_CAR_SPOT.y, r: 70, label: 'Steal the red Comet GT in Downtown', line: 'Jax: Nice ride. Now get it to the Marina Garage in one piece.' },
-      { type: 'deliver', x: GARAGE.x, y: GARAGE.y, r: 90, label: 'Deliver the Comet GT to the Marina Garage', line: "Sal: The client is happy. You're getting good at this, Jax." },
+      { type: 'deliver', x: GARAGE.x, y: GARAGE.y, r: 110, label: 'Deliver the Comet GT to the Marina Garage', line: "Sal: The client is happy. You're getting good at this, Jax." },
     ],
   },
   {
@@ -42,9 +42,9 @@ export const MISSIONS = [
     intro: "Sal: The big one. Solmar Bank, Friday night. Crack the vault, grab the cash, and lose the heat at the Sunset Motel.",
     reward: 5000,
     steps: [
-      { type: 'goto', x: BANK.x, y: BANK.y, r: 90, label: 'Reach Solmar Bank', line: 'Jax: Alright. In and out, nobody gets hurt.' },
-      { type: 'hold', x: BANK.x, y: BANK.y, r: 80, secs: 4, label: 'Hold E to crack the vault', line: 'Jax: Vault is open! Grab the cash and RUN!' },
-      { type: 'escape', x: MOTEL.x, y: MOTEL.y, r: 90, label: 'Escape to the Sunset Motel', line: "Sal: You did it, Jax. You're square with me now. Solmar Bay is yours." },
+      { type: 'goto', x: BANK.x, y: BANK.y, r: 130, label: 'Reach Solmar Bank', line: 'Jax: Alright. In and out, nobody gets hurt.' },
+      { type: 'hold', x: BANK.x, y: BANK.y, r: 110, secs: 4, label: 'Hold E to crack the vault', line: 'Jax: Vault is open! Grab the cash and RUN!' },
+      { type: 'escape', x: MOTEL.x, y: MOTEL.y, r: 130, label: 'Escape to the Sunset Motel', line: "Sal: You did it, Jax. You're square with me now. Solmar Bay is yours." },
     ],
   },
 ];

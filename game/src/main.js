@@ -190,7 +190,8 @@ function applyShotMode() {
     p.y = 500;
     prestep(6);
   } else if (shotMode === 'chase') {
-    const car = makeCar('sport', 1650, 750, 0, 'player');
+    // Start mid-city heading east so the camera stays centred on the chase.
+    const car = makeCar('sport', 1050, 750, 0, 'player');
     car.color = '#e01e37';
     car.speed = 380;
     world.cars.push(car);
@@ -201,17 +202,15 @@ function applyShotMode() {
     game.wanted.heat = 40;
     beginMission(1);
     // Put the mission target on the minimap and the beam in the world.
-    prestep(2);
+    prestep(1);
   } else if (shotMode === 'mission') {
     beginMission(0);
+    // Jump to the warehouse leg so the gold beam is in frame.
+    game.missions.active.step = 1;
     p.x = 980;
     p.y = 2620;
-    const car = makeCar('sedan', 980, 2700, -Math.PI / 2, 'player');
-    car.speed = 120;
+    const car = makeCar('sedan', 1067, 2700, -Math.PI / 2, 'parked');
     world.cars.push(car);
-    p.inCar = car;
-    p.x = car.x;
-    p.y = car.y;
     prestep(3);
   }
   game.camera.x = clamp(p.x - viewW / 2, 0, Math.max(0, WORLD_W - viewW));
@@ -235,8 +234,20 @@ function simulate(dt, staged) {
 
   // Player movement.
   if (p.inCar) {
-    if (!staged) updatePlayerCar(world, game.city, input, dt);
-    else {
+    if (!staged) {
+      // Screenshot staging: the chase shot drives itself down the straight
+      // east road (y = 750) so the frame shows a moving chase, not a stall.
+      const autopilot = shotMode === 'chase' && game.state === 'playing';
+      const driveInput = autopilot ? {
+        down: (code) => {
+          if (code === 'KeyW' || code === 'ArrowUp') return true;
+          if (code === 'KeyA' || code === 'ArrowLeft') return p.inCar.y > 762;
+          if (code === 'KeyD' || code === 'ArrowRight') return p.inCar.y < 738;
+          return false;
+        },
+      } : input;
+      updatePlayerCar(world, game.city, driveInput, dt);
+    } else {
       // Staged chase: the car drives itself forward.
       const car = p.inCar;
       car.speed = Math.min(car.speed + 200 * dt, 420);
@@ -294,6 +305,10 @@ function simulate(dt, staged) {
   updatePlayerTimers(world, dt);
   if (ctx.shake) game.shake = Math.max(game.shake, ctx.shake);
 
+  // Safety net: HP can only fall through onPlayerHurt, but never let the
+  // player walk around at 0 HP if some path sets it directly.
+  if (p.hp <= 0 && !p.dead && game.state === 'playing') onWasted();
+
   // District banner.
   const d = districtOfPlayer(game);
   if (d !== game.lastDistrict) {
@@ -322,7 +337,7 @@ function interactPrompt() {
   const step = currentStep(m);
   if (step && step.type === 'talk' && dist(p.x, p.y, step.x, step.y) < step.r) return 'E — Talk';
   if (!m.active && m.available < MISSIONS.length) {
-    const bar = { x: SAL_BAR.x, y: SAL_BAR.y + 130 };
+    const bar = { x: SAL_BAR.x, y: SAL_BAR.y };
     if (dist(p.x, p.y, bar.x, bar.y) < 110) return 'E — Start mission: ' + MISSIONS[m.available].title;
   }
   const car = nearestCar(game.world, p.x, p.y, 70);
@@ -337,9 +352,13 @@ function handleInteract() {
     exitCar(game.world);
     return;
   }
+  // A talk step in range takes priority over getting in a car: the mission
+  // system reads the same E press later this frame and advances the step.
+  const step = currentStep(m);
+  if (step && step.type === 'talk' && dist(p.x, p.y, step.x, step.y) < step.r) return;
   // Start the next story mission at Sal's Bar.
   if (!m.active && m.available < MISSIONS.length) {
-    const bar = { x: SAL_BAR.x, y: SAL_BAR.y + 130 };
+    const bar = { x: SAL_BAR.x, y: SAL_BAR.y };
     if (dist(p.x, p.y, bar.x, bar.y) < 110) {
       beginMission(m.available);
       return;
@@ -462,6 +481,12 @@ function drawMenu() {
     g.font = 'bold 18px system-ui, sans-serif';
     g.fillText(b.label, cx, y + 34);
     game._menuButtons.push({ ...b, x: cx - bw / 2, y, w: bw, h: bh });
+  });
+  // Handle clicks after drawing: a click starts a new game state, so the
+  // draw loop must never touch the new state's fields afterwards.
+  const menuButtons = game._menuButtons;
+  for (const b of menuButtons) {
+    const hover = input.mouseX > b.x && input.mouseX < b.x + b.w && input.mouseY > b.y && input.mouseY < b.y + b.h;
     if (hover && input.mouseClicked) {
       if (b.action === 'new') {
         clearSave();
@@ -476,8 +501,9 @@ function drawMenu() {
       } else if (b.action === 'howto') {
         game.state = 'howto';
       }
+      break;
     }
-  });
+  }
   g.fillStyle = 'rgba(255,255,255,0.6)';
   g.font = '13px system-ui, sans-serif';
   g.fillText('WASD move  •  Mouse aim  •  Click shoot  •  E enter car / talk  •  F punch  •  Shift sprint', cx, viewH - 48);
@@ -612,4 +638,8 @@ if (hasSave()) {
 }
 
 if (shotMode) applyShotMode();
+
+// Debug handle for automated playtests (read-only state inspection).
+window.__solmar = { get game() { return game; } };
+
 requestAnimationFrame(frame);

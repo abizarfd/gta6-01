@@ -140,10 +140,12 @@ function drawRoads(g, game, cam, viewW, viewH) {
     }
   }
   // Crosswalks at every intersection.
-  g.fillStyle = 'rgba(232,228,218,0.75)';
   for (const cx of ROAD_CENTERS) {
     for (const cy of ROAD_CENTERS) {
       if (!inView(cam, viewW, viewH, cx, cy, 1, 1, 90)) continue;
+      // Set the fill fresh for each crossing: the traffic lights below change
+      // it, and a stale colour would paint the next crossing red or green.
+      g.fillStyle = 'rgba(232,228,218,0.75)';
       for (let i = -3; i <= 3; i++) {
         g.fillRect(cx + i * 10 - 3, cy - ROAD_HALF - 4, 6, 8);
         g.fillRect(cx + i * 10 - 3, cy + ROAD_HALF - 4, 6, 8);
