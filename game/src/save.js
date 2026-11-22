@@ -15,6 +15,7 @@ export function saveGame(game) {
       y: p.y,
       missionsCompleted: game.missions.completed,
       missionsAvailable: game.missions.available,
+      taxiFares: game.missions.taxiFares || 0,
       packagesTaken: game.missions.packages.filter((k) => k.taken).length,
       packageTotal: game.missions.packageTotal,
       playSeconds: Math.floor(game.playSeconds || 0),
@@ -56,6 +57,7 @@ export function applySave(game, data) {
   p.y = data.y;
   game.missions.completed = data.missionsCompleted || [];
   game.missions.available = data.missionsAvailable || 0;
+  game.missions.taxiFares = data.taxiFares || 0;
   game.playSeconds = data.playSeconds || 0;
   const taken = data.packagesTaken || 0;
   game.missions.packages.forEach((pkg, i) => {

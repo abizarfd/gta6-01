@@ -49,6 +49,7 @@ export function drawWorld(g, game, cam, viewW, viewH) {
   drawMissionBeam(g, game);
   drawPeds(g, game, cam, viewW, viewH);
   drawCars(g, game, cam, viewW, viewH);
+  drawHeli(g, game, cam, viewW, viewH);
   drawPlayer(g, game);
   drawBullets(g, game, cam, viewW, viewH);
   drawParticles(g, game, cam, viewW, viewH);
@@ -448,6 +449,70 @@ function drawCar(g, car, time) {
   g.restore();
 }
 
+function drawHeli(g, game, cam, viewW, viewH) {
+  const heli = game.world.heli;
+  if (!heli) return;
+  if (!inView(cam, viewW, viewH, heli.x, heli.y, 1, 1, 120)) return;
+  // Shadow on the street below, tracking the hover.
+  g.fillStyle = 'rgba(0,0,0,0.28)';
+  g.beginPath();
+  g.ellipse(heli.x + 10, heli.y + 14, 26, 14, 0, 0, Math.PI * 2);
+  g.fill();
+  // Searchlight cone toward the player.
+  const p = game.world.player;
+  const dx = p.x - heli.x;
+  const dy = p.y - heli.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const px = -dy / d;
+  const py = dx / d;
+  g.save();
+  g.globalAlpha = 0.10;
+  g.fillStyle = '#fff8c0';
+  g.beginPath();
+  g.moveTo(heli.x, heli.y);
+  g.lineTo(p.x + px * 26, p.y + py * 26);
+  g.lineTo(p.x - px * 26, p.y - py * 26);
+  g.closePath();
+  g.fill();
+  g.restore();
+  // The helicopter itself floats a little above its shadow.
+  const bob = Math.sin(heli.bob * 2) * 3;
+  g.save();
+  g.translate(heli.x, heli.y - 34 + bob);
+  g.rotate(heli.angle);
+  // Tail and fin.
+  g.fillStyle = '#1a2a4a';
+  g.fillRect(-34, -3, 22, 6);
+  g.fillRect(-38, -8, 6, 12);
+  // Body.
+  g.fillStyle = '#22344f';
+  g.beginPath();
+  g.ellipse(0, 0, 20, 11, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.4)';
+  g.lineWidth = 1.5;
+  g.stroke();
+  // Canopy.
+  g.fillStyle = '#9fd8ef';
+  g.beginPath();
+  g.ellipse(10, 0, 8, 6, 0, 0, Math.PI * 2);
+  g.fill();
+  // PD marking on the side.
+  g.fillStyle = '#fff';
+  g.font = 'bold 8px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.fillText('PD', -4, 3);
+  // Rotor, spinning.
+  g.rotate(heli.rotor);
+  g.strokeStyle = 'rgba(20,22,26,0.85)';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(-30, 0);
+  g.lineTo(30, 0);
+  g.stroke();
+  g.restore();
+}
+
 function drawCars(g, game, cam, viewW, viewH) {
   for (const car of game.world.cars) {
     if (!inView(cam, viewW, viewH, car.x, car.y, 1, 1, 60)) continue;
@@ -561,6 +626,12 @@ function drawPlayer(g, game) {
   g.beginPath();
   g.moveTo(0, 0);
   g.lineTo(Math.cos(aim) * 18, Math.sin(aim) * 18);
+  g.stroke();
+  // Faint ring so Jax stays findable at a glance on foot.
+  g.strokeStyle = 'rgba(255,255,255,0.28)';
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.arc(0, 0, 16, 0, Math.PI * 2);
   g.stroke();
   g.restore();
   // Low-health pulse.

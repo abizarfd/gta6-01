@@ -162,6 +162,36 @@ export function updatePolice(world, wanted, dt, onBusted) {
   world.cops = footCops.filter((c) => !c.dead && dist(c.x, c.y, player.x, player.y) < 1200);
 }
 
+// A police helicopter: joins the hunt at wanted level 4 and circles above
+// the player. It never shoots or lands — it is the eye in the sky that makes
+// a four-star chase feel like one, and it shows on the minimap.
+export function createPoliceHelicopter(x, y) {
+  return { x, y, angle: 0, rotor: 0, bob: Math.random() * Math.PI * 2 };
+}
+
+export function updatePoliceHelicopter(world, wanted, dt) {
+  const player = world.player;
+  if (wanted.level >= 4 && !world.heli) {
+    world.heli = createPoliceHelicopter(player.x - 260, player.y - 260);
+  }
+  if (wanted.level < 3) {
+    world.heli = null;
+    return;
+  }
+  const heli = world.heli;
+  if (!heli) return;
+  heli.rotor += dt * 28;
+  heli.bob += dt;
+  // Hover off the player's shoulder and circle slowly, never right overhead,
+  // so its shadow and body stay readable on screen.
+  const orbit = Math.atan2(player.y - heli.y, player.x - heli.x) + 0.9;
+  const wantX = player.x + Math.cos(orbit) * 170;
+  const wantY = player.y + Math.sin(orbit) * 170;
+  heli.x += (wantX - heli.x) * Math.min(1, 1.6 * dt);
+  heli.y += (wantY - heli.y) * Math.min(1, 1.6 * dt);
+  heli.angle = Math.atan2(player.y - heli.y, player.x - heli.x);
+}
+
 // Does any cop currently see the player? (Close range, no check for walls:
 // the streets are open and the minimap shows the chase either way.)
 export function anyCopSees(world, player) {

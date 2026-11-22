@@ -90,6 +90,8 @@ export function createWorld(seed) {
     },
     cars: [],
     peds: [],
+    cops: [],
+    heli: null, // police helicopter, live at wanted level 4 (see police.js)
     bullets: [],
     particles: [],
     pickups: [],

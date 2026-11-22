@@ -3,7 +3,7 @@
 // system, the missions, combat and the HUD all meet here.
 import { generateCity, WORLD_W, WORLD_H, BEACH_Y, randomSidewalkPoint, districtAt } from './city.js';
 import { createWorld, maintainPopulation, updateTraffic, updatePeds, movePlayerOnFoot, nearestCar, enterCar, exitCar, updatePlayerCar, makeCar } from './entities.js';
-import { createWanted, addCrime, updateWanted, updatePolice, anyCopSees } from './police.js';
+import { createWanted, addCrime, updateWanted, updatePolice, updatePoliceHelicopter, anyCopSees } from './police.js';
 import { createMissionState, startMission, currentStep, missionTarget, updateMission, updateTaxi, taxiTarget, initPackages, updatePackages, MISSIONS, SAL_BAR, HOT_CAR_SPOT } from './missions.js';
 import { updateCombat, playerShoot, playerPunch, updatePlayerTimers } from './combat.js';
 import { createCamera, updateCamera, drawWorld } from './render.js';
@@ -11,6 +11,7 @@ import { drawHUD, districtOfPlayer } from './hud.js';
 import { SoundBank } from './audio.js';
 import { Input } from './input.js';
 import { saveGame, loadGame, hasSave, applySave, clearSave } from './save.js';
+import { credFor, rankTitle, nextRank } from './progression.js';
 import { clamp, dist, formatMoney } from './util.js';
 
 const CITY_SEED = 20261118;
@@ -78,6 +79,12 @@ function say(text, seconds) {
 }
 
 function toast(text) {
+  const last = game.toasts[game.toasts.length - 1];
+  if (last && last.text === text) {
+    // Same message again: refresh it instead of stacking a duplicate line.
+    last.life = 3;
+    return;
+  }
   game.toasts.push({ text, life: 3 });
   if (game.toasts.length > 3) game.toasts.shift();
 }
@@ -186,8 +193,9 @@ function applyShotMode() {
   game.state = 'playing';
   sounds.ensure();
   if (shotMode === 'city') {
-    p.x = 1650;
-    p.y = 500;
+    // Playa Dorada: on foot on the sand, the sea and the boardwalk in frame.
+    p.x = 1950;
+    p.y = 3360;
     prestep(6);
   } else if (shotMode === 'chase') {
     // Start mid-city heading east so the camera stays centred on the chase.
@@ -198,23 +206,41 @@ function applyShotMode() {
     p.inCar = car;
     p.x = car.x;
     p.y = car.y;
-    game.wanted.level = 3;
-    game.wanted.heat = 40;
+    // Four stars: the police helicopter joins the hunt at this level.
+    game.wanted.level = 4;
+    game.wanted.heat = 60;
     beginMission(1);
     // Put the mission target on the minimap and the beam in the world.
     prestep(1);
   } else if (shotMode === 'mission') {
-    beginMission(0);
-    // Jump to the warehouse leg so the gold beam is in frame.
+    // The Solmar Job at its tensest beat: Jax at the bank vault, the hold
+    // half-cracked, three stars on the board and the cruisers closing in.
+    // Jax waits in the car on the road south of the bank — the cruisers
+    // orbit him on the open road instead of piling onto the bank itself.
+    beginMission(2);
     game.missions.active.step = 1;
-    p.x = 980;
-    p.y = 2620;
-    const car = makeCar('sedan', 1067, 2700, -Math.PI / 2, 'parked');
+    const car = makeCar('sedan', 1675, 720, -Math.PI / 2, 'player');
     world.cars.push(car);
-    prestep(3);
+    p.inCar = car;
+    p.x = car.x;
+    p.y = car.y;
+    game.wanted.level = 3;
+    game.wanted.heat = 50;
+    prestep(2);
+    // The vault hold is live now: stage it half-cracked. The hold decays
+    // while nobody holds E, so stage it high enough that the bar still
+    // reads half-full when the shutter falls.
+    if (game.missions.active) {
+      game.missions.active.holdT = 8.0;
+      say('Sal: Crack the vault — four seconds on the door, then grab the cash and run.', 6);
+    }
   }
   game.camera.x = clamp(p.x - viewW / 2, 0, Math.max(0, WORLD_W - viewW));
   game.camera.y = clamp(p.y - viewH / 2, 0, Math.max(0, WORLD_H - viewH));
+  // Keep the district label fully visible in the shot, not half-faded, and
+  // refresh any toast so none of them shows half-faded either.
+  game.districtLabelT = 6;
+  for (const t of game.toasts) t.life = 3;
 }
 
 // Advance the simulation without rendering, so a staged scene is already busy.
@@ -247,8 +273,9 @@ function simulate(dt, staged) {
         },
       } : input;
       updatePlayerCar(world, game.city, driveInput, dt);
-    } else {
-      // Staged chase: the car drives itself forward.
+    } else if (shotMode === 'chase') {
+      // Staged chase: the car drives itself forward. Other staged shots
+      // hold still — a parked car at the bank should stay at the bank.
       const car = p.inCar;
       car.speed = Math.min(car.speed + 200 * dt, 420);
       car.x += Math.cos(car.angle) * car.speed * dt;
@@ -280,6 +307,7 @@ function simulate(dt, staged) {
   }
 
   updatePolice(world, game.wanted, dt, onBusted);
+  updatePoliceHelicopter(world, game.wanted, dt);
   updateWanted(game.wanted, dt, anyCopSees(world, p), !!p.inCar);
   sounds.setSiren(game.wanted.level > 0 && game.state === 'playing');
   sounds.setEngine(!!p.inCar && game.state === 'playing', p.inCar ? Math.abs(p.inCar.speed) / 560 : 0);
@@ -525,6 +553,7 @@ function drawHowTo() {
     ['Wanted', 'Stars mean the police are after you. Lose them by staying out of sight — the heat cools off.'],
     ['Missions', 'Talk to Sal at Sal\'s Bar to start a story mission. Follow the gold marker.'],
     ['Side work', 'Drive a taxi for fares, or find stashed cash ($150) around the city.'],
+    ['Street Cred', 'Missions, taxi fares and stashed cash raise your rank: Wheelman, Hustler, Runner, Kingpin of Solmar Bay.'],
     ['Save', 'Progress autosaves. P saves now. Esc pauses. M mutes.'],
     ['Busted / Wasted', 'Caught or killed: you lose 10% of your cash and wake up at City Hospital.'],
   ];
@@ -559,6 +588,13 @@ function drawPaused() {
   g.fillStyle = '#cfd6de';
   g.fillText('Esc — resume      P — save now      M — mute', cx, viewH / 2 + 10);
   g.fillText('Progress autosaves every 45 seconds.', cx, viewH / 2 + 38);
+  const cred = credFor(game.missions);
+  const nr = nextRank(cred);
+  g.fillStyle = '#ffd23f';
+  g.fillText(
+    nr ? 'Street Cred ' + cred + ' — ' + nr.left + ' to ' + nr.title : 'Street Cred ' + cred + ' — top rank, ' + rankTitle(cred),
+    cx, viewH / 2 + 66,
+  );
 }
 
 function drawPlaying() {

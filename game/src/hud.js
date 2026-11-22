@@ -2,6 +2,7 @@
 // banner, toasts, subtitles and the live minimap in the corner.
 import { ROAD_CENTERS, ROAD_HALF, WORLD_W, WORLD_H, BEACH_Y, WATER_Y, districtAt } from './city.js';
 import { clamp, formatMoney } from './util.js';
+import { credFor, rankTitle } from './progression.js';
 
 export function drawHUD(g, game, viewW, viewH) {
   const p = game.world.player;
@@ -35,6 +36,15 @@ function drawTopLeft(g, game, viewW) {
   g.font = 'bold 22px system-ui, sans-serif';
   g.textAlign = 'left';
   g.fillText(formatMoney(p.money), 26, 42);
+  // Street Cred rank, top-right of the same panel.
+  g.textAlign = 'right';
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.font = 'bold 9px system-ui, sans-serif';
+  g.fillText('RANK', 212, 28);
+  g.fillStyle = '#ffd23f';
+  g.font = 'bold 12px system-ui, sans-serif';
+  g.fillText(rankTitle(credFor(game.missions)).toUpperCase(), 212, 44);
+  g.textAlign = 'left';
   // Health bar.
   g.fillStyle = 'rgba(255,255,255,0.2)';
   g.fillRect(26, 52, 186, 10);
@@ -176,6 +186,17 @@ function drawMinimap(g, game, viewW, viewH) {
     g.arc(x0 + car.x * scale, y0 + car.y * scale, 2.5, 0, Math.PI * 2);
     g.fill();
   }
+  // Police helicopter, when one is hunting the player.
+  if (game.world.heli) {
+    const h = game.world.heli;
+    g.fillStyle = '#fff';
+    g.beginPath();
+    g.arc(x0 + h.x * scale, y0 + h.y * scale, 4, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = '#ff2e2e';
+    g.lineWidth = 1.5;
+    g.stroke();
+  }
   // Player arrow.
   const p = game.world.player;
   g.save();
@@ -235,10 +256,17 @@ function drawToasts(g, game, viewW, viewH) {
   g.textAlign = 'center';
   game.toasts.forEach((t, i) => {
     const a = clamp(t.life / 1, 0, 1);
-    g.globalAlpha = a;
+    const y = 96 + i * 24;
     g.font = 'bold 15px system-ui, sans-serif';
+    const w = g.measureText(t.text).width + 20;
+    g.globalAlpha = a * 0.85;
+    g.fillStyle = 'rgba(0,0,0,0.55)';
+    g.beginPath();
+    g.roundRect(viewW / 2 - w / 2, y - 17, w, 22, 6);
+    g.fill();
+    g.globalAlpha = a;
     g.fillStyle = '#ffd23f';
-    g.fillText(t.text, viewW / 2, 96 + i * 24);
+    g.fillText(t.text, viewW / 2, y);
     g.globalAlpha = 1;
   });
 }
@@ -262,13 +290,19 @@ function drawCenterMessage(g, game, viewW, viewH) {
 function drawDistrictLabel(g, game, viewW, viewH) {
   if (!game.districtLabel || game.districtLabelT <= 0) return;
   g.globalAlpha = clamp(game.districtLabelT / 1.2, 0, 1);
+  // Dark pill behind the label so it reads over roads and rooftops.
+  g.font = 'bold 26px system-ui, sans-serif';
+  const w = Math.max(g.measureText(game.districtLabel).width, 90) + 24;
+  g.fillStyle = 'rgba(10,14,20,0.55)';
+  g.beginPath();
+  g.roundRect(8, 112, w, 56, 8);
+  g.fill();
   g.textAlign = 'left';
   g.fillStyle = '#fff';
-  g.font = 'bold 26px system-ui, sans-serif';
-  g.fillText(game.districtLabel, 16, 132);
+  g.fillText(game.districtLabel, 20, 140);
   g.font = '13px system-ui, sans-serif';
   g.fillStyle = 'rgba(255,255,255,0.75)';
-  g.fillText('Solmar Bay', 16, 152);
+  g.fillText('Solmar Bay', 20, 160);
   g.globalAlpha = 1;
 }
 

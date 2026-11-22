@@ -55,6 +55,7 @@ export function createMissionState() {
     completed: [],
     available: 0, // index into MISSIONS of the next story mission
     taxi: null, // { stage: 'pickup'|'dropoff', x, y, fare, passenger }
+    taxiFares: 0, // fares finished — feeds Street Cred
     packages: [], // { x, y, taken }
     packageTotal: 0,
   };
@@ -190,6 +191,7 @@ export function updateTaxi(state, ctx, dt) {
     ctx.sounds.pickup();
   } else if (t.stage === 'dropoff' && dist(p.x, p.y, t.dx, t.dy) < 70 && p.inCar) {
     p.money += t.fare;
+    state.taxiFares = (state.taxiFares || 0) + 1;
     ctx.sounds.cash();
     ctx.toast('Fare complete  +$' + t.fare);
     state.taxi = null;
